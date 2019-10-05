@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/lib/pq"
+
 	"github.com/gorilla/mux"
 )
 
@@ -31,21 +33,19 @@ func main() {
 	//connection string
 	pgUrl, err := pq.ParseURL("postgres://vwbmbsno:M86A301aHWOebuEum0ypW00pTkqAOftz@salt.db.elephantsql.com:5432/vwbmbsno")
 
-	fmt.Println(db)
+	//check if there is error in connection
+	if err != nil {
+		log.Fatal(err)
+	}
+	//database handle connection credentials
+	db, err = sql.Open("postgres", pgUrl)
 
 	//check if there is error in connection
 	if err != nil {
 		log.Fatal(err)
 	}
-	//connection credentials
-	db, err = sql.Open("Postgres", pgUrl)
-
-	//check if there is error in connection
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println(db)
+	//check if a connection to database is established else returns an error if response is empty no error
+	err = db.Ping()
 
 	//new router object
 	router := mux.NewRouter()
