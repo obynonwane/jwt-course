@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/lib/pq"
+	"github.com/subosito/gotenv"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gorilla/mux"
@@ -32,9 +35,13 @@ type Error struct {
 //global db object
 var db *sql.DB
 
+func init() {
+	gotenv.Load()
+}
+
 func main() {
 	//connection string
-	pgUrl, err := pq.ParseURL("postgres://vwbmbsno:M86A301aHWOebuEum0ypW00pTkqAOftz@salt.db.elephantsql.com:5432/vwbmbsno")
+	pgUrl, err := pq.ParseURL(os.Getenv("ELEPHANTSQL_URL"))
 
 	//check if there is error in connection
 	if err != nil {
@@ -152,7 +159,7 @@ func signup(w http.ResponseWriter, r *http.Request) {
 //Utility function to generate toiken for signed In User
 func GenerateToken(user User) (string, error) {
 	var err error
-	secret := "secret"
+	secret := os.Getenv("SECRET") //we used it to sign the jwt token
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email": user.Email,
@@ -162,12 +169,12 @@ func GenerateToken(user User) (string, error) {
 	//generate signed token using the secrete given
 	tokenString, err := token.SignedString([]byte(secret))
 
-	//check if error during token generation
+	//check if error during signing of token generation
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	//return the token to login
+	//return the token to login - cause it invokdd this func
 	return tokenString, nil
 
 }
@@ -244,10 +251,61 @@ func login(w http.ResponseWriter, r *http.Request) {
 //Handler function for Protected Middleware
 func protectedEndPoint(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("protectedEndPoint Invoked .....")
+	w.Write([]byte("yes"))
 }
 
 //It validates the token we send from the client to the server
+//and it gives us access to the protected end point
 func TokenVerifyMiddleWare(next http.HandlerFunc) http.HandlerFunc {
-	fmt.Println("TokenVerifyMiddleWare Invoked .....")
-	return nil
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		//handling Error from the Error Type
+		var errorObject Error
+
+		//this variable holds the value of authorization header
+		//we send from the client to the server
+		//authHeader - is a request object containing a field called Header
+		//Header is a map of key vale pair of Key-Authorization, Value- jwt token
+		authHeader := r.Header.Get("Authorization")
+		//the string method splits the bearer and the token make them individual elements - Array of Two Elements
+		bearerToken := strings.Split(authHeader, " ")
+
+		//pick the second element which is the token - ie extract the token
+		if len(bearerToken) == 2 {
+			authToken := bearerToken[1]
+
+			//validates a token from the client using the Parse method and retuns the token/key
+			token, error := jwt.Parse(authToken, func(token *jwt.Token) (interface{}, error) {
+				//validating algorithm used
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("There was an error")
+				}
+				//return the secret as stream of byte
+				return []byte(os.Getenv("SECRET")), nil
+
+			})
+
+			//message if there is an error during token validation
+			if error != nil {
+				errorObject.Message = error.Error()
+				respondWithError(w, http.StatusUnauthorized, errorObject)
+				return
+			}
+
+			//checking if the token is valid or not valid
+			if token.Valid {
+				//invoking the next function that is been called
+				next.ServeHTTP(w, r)
+			} else {
+				errorObject.Message = error.Error()
+				respondWithError(w, http.StatusUnauthorized, errorObject)
+				return
+			}
+		} else {
+			errorObject.Message = "Invalid Token"
+			respondWithError(w, http.StatusUnauthorized, errorObject)
+			return
+		}
+	})
 }
