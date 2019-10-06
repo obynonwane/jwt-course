@@ -8,29 +8,14 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"jwt-course/driver"
 
 	jwt "github.com/dgrijalva/jwt-go"
-	"github.com/lib/pq"
 	"github.com/subosito/gotenv"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/gorilla/mux"
 )
-
-//defining our model
-type User struct {
-	ID       int    `json:"id"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-type JWT struct {
-	Token string `json:"token"`
-}
-
-type Error struct {
-	Message string `json:"message"`
-}
 
 //global db object
 var db *sql.DB
@@ -40,28 +25,6 @@ func init() {
 }
 
 func main() {
-	//connection string
-	pgUrl, err := pq.ParseURL(os.Getenv("ELEPHANTSQL_URL"))
-
-	//check if there is error in connection
-	if err != nil {
-		log.Fatal(err)
-	}
-	//database handle connection created using the .Open method credentials
-	//postgres = db driver
-	//pgUrl = specifies database connection credentials
-	db, err = sql.Open("postgres", pgUrl)
-
-	//check if there is error in connection
-	if err != nil {
-		log.Fatal(err)
-	}
-	//check if a connection to database is established else returns an error if response is empty no error
-	err = db.Ping()
-
-	if err != nil {
-		log.Fatal(err)
-	}
 
 	//new router object
 	router := mux.NewRouter()
