@@ -4,11 +4,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"jwt-course/driver"
 	"log"
 	"net/http"
 	"os"
 	"strings"
-	"jwt-course/driver"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/subosito/gotenv"
@@ -25,6 +25,8 @@ func init() {
 }
 
 func main() {
+
+	driver.ConnectDB()
 
 	//new router object
 	router := mux.NewRouter()
