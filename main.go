@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"jwt-course/driver"
 	"jwt-course/models"
+	"jwt-course/utils"
 	"log"
 	"net/http"
 	"os"
@@ -41,28 +42,6 @@ func main() {
 
 }
 
-//Utility function that handle error responses
-func respondWithError(w http.ResponseWriter, status int, message string) {
-
-	var error models.Error
-
-	error.Message = message
-
-	//invoking response writer to send status code of 400 - Bad request
-	w.WriteHeader(status)
-
-	//pass the custom message back
-	json.NewEncoder(w).Encode(error)
-
-	//execution leaves the handler
-	return
-}
-
-//Utility function that sends data back in json
-func responseJSON(w http.ResponseWriter, data interface{}) {
-	json.NewEncoder(w).Encode(data)
-}
-
 //signup handler function
 func signup(w http.ResponseWriter, r *http.Request) {
 	var user models.User
@@ -72,7 +51,7 @@ func signup(w http.ResponseWriter, r *http.Request) {
 	//validating email input
 	if user.Email == "" {
 
-		respondWithError(w, http.StatusBadRequest, "Email is missing")
+		utils.RespondWithError(w, http.StatusBadRequest, "Email is missing")
 
 		//execution leaves the handler
 		return
@@ -81,7 +60,7 @@ func signup(w http.ResponseWriter, r *http.Request) {
 	//validating password input
 	if user.Password == "" {
 
-		respondWithError(w, http.StatusBadRequest, "Password is missing")
+		utils.RespondWithError(w, http.StatusBadRequest, "Password is missing")
 
 		//execution leaves the handler
 		return
@@ -106,7 +85,7 @@ func signup(w http.ResponseWriter, r *http.Request) {
 	//check if there is error in query execution
 	if err != nil {
 
-		respondWithError(w, http.StatusInternalServerError, "Server Error.") //responseWriterError is a utility function to  handle error response
+		utils.RespondWithError(w, http.StatusInternalServerError, "Server Error.") //responseWriterError is a utility function to  handle error response
 		return
 	}
 	//set password to empty string so it wont be returned
@@ -117,7 +96,7 @@ func signup(w http.ResponseWriter, r *http.Request) {
 
 	//Call utility function for sending back response for user signup passing
 	//content type and created user
-	responseJSON(w, user)
+	utils.ResponseJSON(w, user)
 
 }
 
@@ -147,22 +126,22 @@ func GenerateToken(user models.User) (string, error) {
 //Login Handler Function
 func login(w http.ResponseWriter, r *http.Request) {
 	//user object
-	var user models.User   // from struct
-	var error models.Error //from struct
-	var jwt models.JWT     //from JWT Struct
+	var user models.User // from struct
+	//var error models.Error //from struct
+	var jwt models.JWT //from JWT Struct
 
 	//decode the user object received from input and map  to the user struct/user varaiable
 	json.NewDecoder(r.Body).Decode(&user)
 
 	//returned error if no email is sent
 	if user.Email == "" {
-		respondWithError(w, http.StatusBadRequest, "Email is Missing")
+		utils.RespondWithError(w, http.StatusBadRequest, "Email is Missing")
 		return
 	}
 
 	//returned error if no password is submitted
 	if user.Password == "" {
-		respondWithError(w, http.StatusBadRequest, "Password is Missing")
+		utils.RespondWithError(w, http.StatusBadRequest, "Password is Missing")
 		return
 	}
 	//get plaintext password
@@ -177,7 +156,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 	//check if email or user exist
 	if err != nil {
 		if err == sql.ErrNoRows {
-			respondWithError(w, http.StatusBadRequest, "The user does not Exists")
+			utils.RespondWithError(w, http.StatusBadRequest, "The user does not Exists")
 			return
 		} else {
 			log.Fatal(err)
@@ -191,7 +170,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 
-		respondWithError(w, http.StatusBadRequest, "Invalid Password Supplied")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid Password Supplied")
 
 		return
 	}
@@ -206,7 +185,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 	//header containing respo
 	w.WriteHeader(http.StatusOK)
 	jwt.Token = token
-	responseJSON(w, jwt) //Return jwt and response status to the client
+	utils.ResponseJSON(w, jwt) //Return jwt and response status to the client
 
 }
 
@@ -251,7 +230,7 @@ func TokenVerifyMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 			//message if there is an error during token validation
 			if error != nil {
 				errorObject.Message = error.Error()
-				respondWithError(w, http.StatusUnauthorized, "Error")
+				utils.RespondWithError(w, http.StatusUnauthorized, "Error")
 				return
 			}
 
@@ -261,11 +240,11 @@ func TokenVerifyMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 				next.ServeHTTP(w, r)
 			} else {
 				errorObject.Message = error.Error()
-				respondWithError(w, http.StatusUnauthorized, "Error")
+				utils.RespondWithError(w, http.StatusUnauthorized, "Error")
 				return
 			}
 		} else {
-			respondWithError(w, http.StatusUnauthorized, "Error")
+			utils.RespondWithError(w, http.StatusUnauthorized, "Error")
 			return
 		}
 	})
