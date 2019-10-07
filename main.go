@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"jwt-course/driver"
+	"jwt-course/models"
 	"log"
 	"net/http"
 	"os"
@@ -26,7 +27,7 @@ func init() {
 
 func main() {
 
-	driver.ConnectDB()
+	db = driver.ConnectDB()
 
 	//new router object
 	router := mux.NewRouter()
@@ -41,7 +42,11 @@ func main() {
 }
 
 //Utility function that handle error responses
-func respondWithError(w http.ResponseWriter, status int, error Error) {
+func respondWithError(w http.ResponseWriter, status int, message string) {
+
+	var error models.Error
+
+	error.Message = message
 
 	//invoking response writer to send status code of 400 - Bad request
 	w.WriteHeader(status)
@@ -60,17 +65,14 @@ func responseJSON(w http.ResponseWriter, data interface{}) {
 
 //signup handler function
 func signup(w http.ResponseWriter, r *http.Request) {
-	var user User
-	var error Error
+	var user models.User
 
 	json.NewDecoder(r.Body).Decode(&user)
 
 	//validating email input
 	if user.Email == "" {
-		//bad reques
-		error.Message = "Email is missing"
 
-		respondWithError(w, http.StatusBadRequest, error)
+		respondWithError(w, http.StatusBadRequest, "Email is missing")
 
 		//execution leaves the handler
 		return
@@ -78,10 +80,8 @@ func signup(w http.ResponseWriter, r *http.Request) {
 
 	//validating password input
 	if user.Password == "" {
-		//bad reques
-		error.Message = "Password is missing"
 
-		respondWithError(w, http.StatusBadRequest, error)
+		respondWithError(w, http.StatusBadRequest, "Password is missing")
 
 		//execution leaves the handler
 		return
@@ -105,8 +105,8 @@ func signup(w http.ResponseWriter, r *http.Request) {
 
 	//check if there is error in query execution
 	if err != nil {
-		error.Message = "Server Error."
-		respondWithError(w, http.StatusInternalServerError, error) //responseWriterError is a utility function to  handle error response
+
+		respondWithError(w, http.StatusInternalServerError, "Server Error.") //responseWriterError is a utility function to  handle error response
 		return
 	}
 	//set password to empty string so it wont be returned
@@ -122,7 +122,7 @@ func signup(w http.ResponseWriter, r *http.Request) {
 }
 
 //Utility function to generate toiken for signed In User
-func GenerateToken(user User) (string, error) {
+func GenerateToken(user models.User) (string, error) {
 	var err error
 	secret := os.Getenv("SECRET") //we used it to sign the jwt token
 
@@ -147,24 +147,22 @@ func GenerateToken(user User) (string, error) {
 //Login Handler Function
 func login(w http.ResponseWriter, r *http.Request) {
 	//user object
-	var user User   // from struct
-	var error Error //from struct
-	var jwt JWT     //from JWT Struct
+	var user models.User   // from struct
+	var error models.Error //from struct
+	var jwt models.JWT     //from JWT Struct
 
 	//decode the user object received from input and map  to the user struct/user varaiable
 	json.NewDecoder(r.Body).Decode(&user)
 
 	//returned error if no email is sent
 	if user.Email == "" {
-		error.Message = "Email is Missing"
-		respondWithError(w, http.StatusBadRequest, error)
+		respondWithError(w, http.StatusBadRequest, "Email is Missing")
 		return
 	}
 
 	//returned error if no password is submitted
 	if user.Password == "" {
-		error.Message = "Password is Missing"
-		respondWithError(w, http.StatusBadRequest, error)
+		respondWithError(w, http.StatusBadRequest, "Password is Missing")
 		return
 	}
 	//get plaintext password
@@ -179,8 +177,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 	//check if email or user exist
 	if err != nil {
 		if err == sql.ErrNoRows {
-			error.Message = "The user does not Exists"
-			respondWithError(w, http.StatusBadRequest, error)
+			respondWithError(w, http.StatusBadRequest, "The user does not Exists")
 			return
 		} else {
 			log.Fatal(err)
@@ -193,8 +190,8 @@ func login(w http.ResponseWriter, r *http.Request) {
 	err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 
 	if err != nil {
-		error.Message = "Invalid Password Supplied"
-		respondWithError(w, http.StatusBadRequest, error)
+
+		respondWithError(w, http.StatusBadRequest, "Invalid Password Supplied")
 
 		return
 	}
@@ -226,7 +223,7 @@ func TokenVerifyMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		//handling Error from the Error Type
-		var errorObject Error
+		var errorObject models.Error
 
 		//this variable holds the value of authorization header
 		//we send from the client to the server
@@ -254,7 +251,7 @@ func TokenVerifyMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 			//message if there is an error during token validation
 			if error != nil {
 				errorObject.Message = error.Error()
-				respondWithError(w, http.StatusUnauthorized, errorObject)
+				respondWithError(w, http.StatusUnauthorized, "Error")
 				return
 			}
 
@@ -264,12 +261,11 @@ func TokenVerifyMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 				next.ServeHTTP(w, r)
 			} else {
 				errorObject.Message = error.Error()
-				respondWithError(w, http.StatusUnauthorized, errorObject)
+				respondWithError(w, http.StatusUnauthorized, "Error")
 				return
 			}
 		} else {
-			errorObject.Message = "Invalid Token"
-			respondWithError(w, http.StatusUnauthorized, errorObject)
+			respondWithError(w, http.StatusUnauthorized, "Error")
 			return
 		}
 	})
