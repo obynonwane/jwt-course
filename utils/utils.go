@@ -2,10 +2,12 @@ package utils
 
 import (
 	"encoding/json"
+	"fmt"
 	"jwt-course/models"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/dgrijalva/jwt-go"
 	"golang.org/x/crypto/bcrypt"
@@ -66,4 +68,57 @@ func GenerateToken(user models.User) (string, error) {
 
 }
 
+//It validates the token we send from the client to the server
+//and it gives us access to the protected end point
+func TokenVerifyMiddleWare(next http.HandlerFunc) http.HandlerFunc {
 
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		//handling Error from the Error Type
+		var errorObject models.Error
+
+		//this variable holds the value of authorization header
+		//we send from the client to the server
+		//authHeader - is a request object containing a field called Header
+		//Header is a map of key vale pair of Key-Authorization, Value- jwt token
+		authHeader := r.Header.Get("Authorization")
+		//the string method splits the bearer and the token make them individual elements - Array of Two Elements
+		bearerToken := strings.Split(authHeader, " ")
+
+		//pick the second element which is the token - ie extract the token
+		if len(bearerToken) == 2 {
+			authToken := bearerToken[1]
+
+			//validates a token from the client using the Parse method and retuns the token/key
+			token, error := jwt.Parse(authToken, func(token *jwt.Token) (interface{}, error) {
+				//validating algorithm used
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("There was an error")
+				}
+				//return the secret as stream of byte
+				return []byte(os.Getenv("SECRET")), nil
+
+			})
+
+			//message if there is an error during token validation
+			if error != nil {
+				errorObject.Message = error.Error()
+				RespondWithError(w, http.StatusUnauthorized, "Error")
+				return
+			}
+
+			//checking if the token is valid or not valid
+			if token.Valid {
+				//invoking the next function that is been called
+				next.ServeHTTP(w, r)
+			} else {
+				errorObject.Message = error.Error()
+				RespondWithError(w, http.StatusUnauthorized, "Error")
+				return
+			}
+		} else {
+			RespondWithError(w, http.StatusUnauthorized, "Error")
+			return
+		}
+	})
+}
